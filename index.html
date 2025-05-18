@@ -56,7 +56,7 @@
       margin: 2px 0;
       font-size: 16px;
       border-radius: 4px;
-      min-width: 48px;
+      min-width: 58px;
       text-align: center;
       border: 1px solid #ccc;
       font-family: monospace;
@@ -125,8 +125,20 @@
     let mistakeCount = 0;
     let startTime = performance.now();
 
+    function getWeightedKanaList() {
+      return kanaKeys.flatMap(kana => {
+        const stat = sessionStats[kana] || { correct: 0, incorrect: 0 };
+        const total = stat.correct + stat.incorrect;
+        const accuracy = total ? stat.correct / total : 0.5;
+
+        const weight = 1 + (1 - accuracy) * 2; // range: 1 → 3
+        return Array(Math.round(weight * 10)).fill(kana);
+      });
+    }
+
     function getRandomKana() {
-      return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
+      const weighted = getWeightedKanaList();
+      return weighted[Math.floor(Math.random() * weighted.length)];
     }
 
     function initQueue() {
@@ -167,8 +179,10 @@
           const timeTaken = (performance.now() - startTime) / 1000;
           updateStats(currentKana, true, timeTaken);
 
-          sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
+          sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0, timeSum: 0 };
           sessionStats[currentKana].correct++;
+          sessionStats[currentKana].timeSum += timeTaken;
+
           sessionTotals.correct++;
 
           queue.shift();
@@ -182,7 +196,7 @@
         mistakeCount++;
         updateStats(currentKana, false, 0);
 
-        sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
+        sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0, timeSum: 0 };
         sessionStats[currentKana].incorrect++;
         sessionTotals.incorrect++;
 
@@ -204,8 +218,8 @@
       const accuracy = total ? Math.round((sessionTotals.correct / total) * 100) : 0;
 
       summaryEl.innerHTML = `
-        <p><strong>📈 Accuracy:</strong> ${accuracy}% |
-           ✅ ${sessionTotals.correct} / ❌ ${sessionTotals.incorrect} (${total} total)</p>
+        <p><strong>📈 ${accuracy}% Accuracy</strong> — 
+        ✅ ${sessionTotals.correct} / ❌ ${sessionTotals.incorrect} (${total} total)</p>
       `;
 
       const groupData = {};
@@ -234,13 +248,14 @@
 
           const totalAttempts = stat.correct + stat.incorrect;
           const accuracy = totalAttempts ? stat.correct / totalAttempts : 0;
-          const hue = Math.round(accuracy * 120); // red (0) → green (120)
+          const avgTime = stat.correct > 0 ? (stat.timeSum / stat.correct).toFixed(1) : '–';
+          const hue = Math.round(accuracy * 120); // 0 (red) to 120 (green)
           const backgroundColor = `hsl(${hue}, 70%, 80%)`;
 
           const span = document.createElement('span');
           span.className = 'stat-kana';
           span.style.backgroundColor = backgroundColor;
-          span.title = `Accuracy: ${(accuracy * 100).toFixed(0)}%, Attempts: ${totalAttempts}`;
+          span.title = `Accuracy: ${(accuracy * 100).toFixed(0)}%, Attempts: ${totalAttempts}, Avg Time: ${avgTime}s`;
           span.textContent = `${kana} (${stat.correct}/${totalAttempts})`;
 
           block.appendChild(span);
