@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+  <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -133,21 +133,19 @@
       const groupData = { ...HIRAGANA_GROUPS, ...KATAKANA_GROUPS };
 
       for (const [group, kanaList] of Object.entries(groupData)) {
-        if (
-          !settings.hiraganaGroups.includes(group) &&
-          !settings.katakanaGroups.includes(group)
-        ) continue;
+        const hasAnyKana = kanaList.some(kana => kanaKeys.includes(kana));
+        if (!hasAnyKana) continue;
 
         const block = document.createElement('div');
         block.className = 'group-block';
-
+    
         const label = document.createElement('div');
         label.className = 'group-label';
         label.textContent = group.toUpperCase();
         block.appendChild(label);
 
         kanaList.forEach(kana => {
-          if (!kanaKeys.includes(kana)) return;
+        if (!kanaKeys.includes(kana)) return;
 
           const stat = sessionStats[kana] || { correct: 0, incorrect: 0 };
           const span = document.createElement('span');
@@ -163,6 +161,7 @@
         statsGrid.appendChild(block);
       }
     }
+
 
     function getRandomKana() {
       return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
