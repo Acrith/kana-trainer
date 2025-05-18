@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Settings</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Settings</h1>
+
+  <form id="settingsForm">
+    <label>
+      Kana count to display:
+      <input type="number" id="kanaCount" min="1" max="50" />
+    </label>
+
+    <h3>Hiragana Groups</h3>
+    <div id="hiraganaGroups"></div>
+
+    <h3>Katakana Groups</h3>
+    <div id="katakanaGroups"></div>
+
+    <br />
+    <button type="submit">💾 Save Settings</button>
+  </form>
+
+  <p><a href="index.html">← Back to Game</a></p>
+
+  <script type="module">
+    import { HIRAGANA_GROUPS, KATAKANA_GROUPS } from './kana-data.js';
+    import { loadSettings, saveSettings } from './storage.js';
+
+    const kanaCountInput = document.getElementById('kanaCount');
+    const form = document.getElementById('settingsForm');
+    const hGroupDiv = document.getElementById('hiraganaGroups');
+    const kGroupDiv = document.getElementById('katakanaGroups');
+
+    const settings = loadSettings();
+
+    kanaCountInput.value = settings.kanaCount || 10;
+
+    function renderGroups(groupObj, container, selectedList, prefix) {
+      for (const groupName in groupObj) {
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = prefix + groupName;
+        checkbox.value = groupName;
+        checkbox.checked = selectedList.includes(groupName);
+
+        const label = document.createElement('label');
+        label.htmlFor = checkbox.id;
+        label.textContent = groupName.replace('_', ' ').toUpperCase();
+
+        const div = document.createElement('div');
+        div.appendChild(checkbox);
+        div.appendChild(label);
+
+        container.appendChild(div);
+      }
+    }
+
+    renderGroups(HIRAGANA_GROUPS, hGroupDiv, settings.hiraganaGroups || [], 'h_');
+    renderGroups(KATAKANA_GROUPS, kGroupDiv, settings.katakanaGroups || [], 'k_');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const hGroups = Array.from(hGroupDiv.querySelectorAll('input:checked')).map(cb => cb.value);
+      const kGroups = Array.from(kGroupDiv.querySelectorAll('input:checked')).map(cb => cb.value);
+
+      const newSettings = {
+        kanaCount: parseInt(kanaCountInput.value),
+        hiraganaGroups: hGroups,
+        katakanaGroups: kGroups
+      };
+
+      saveSettings(newSettings);
+      alert('✅ Settings saved!');
+    });
+  </script>
+</body>
+</html>

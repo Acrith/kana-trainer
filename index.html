@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kana Typing Trainer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Kana Typing Trainer</h1>
+
+  <div id="kanaStream"></div>
+  <input type="text" id="inputBox" placeholder="Type romaji..." autofocus />
+  <p id="hint"></p>
+
+  <p>
+    <a href="settings.html">⚙️ Settings</a> |
+    <a href="stats.html">📊 Stats</a>
+  </p>
+
+  <script type="module">
+    import {
+      HIRAGANA, KATAKANA,
+      HIRAGANA_GROUPS, KATAKANA_GROUPS
+    } from './kana-data.js';
+    import { loadSettings, updateStats } from './storage.js';
+
+    const inputBox = document.getElementById('inputBox');
+    const kanaStream = document.getElementById('kanaStream');
+    const hintEl = document.getElementById('hint');
+
+    const settings = loadSettings();
+    let kanaMap = {};
+    let kanaKeys = [];
+
+    // Build pool from selected groups
+    settings.hiraganaGroups.forEach(group => {
+      (HIRAGANA_GROUPS[group] || []).forEach(kana => {
+        kanaMap[kana] = HIRAGANA[kana];
+        kanaKeys.push(kana);
+      });
+    });
+
+    settings.katakanaGroups.forEach(group => {
+      (KATAKANA_GROUPS[group] || []).forEach(kana => {
+        kanaMap[kana] = KATAKANA[kana];
+        kanaKeys.push(kana);
+      });
+    });
+
+    if (kanaKeys.length === 0) {
+      alert('❗ You must select at least one kana group in settings.');
+    }
+
+    let queue = [];
+    let currentKana = '';
+    let expectedRomaji = '';
+    let mistakeCount = 0;
+    let startTime = performance.now();
+
+    function getRandomKana() {
+      return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
+    }
+
+    function initQueue() {
+      queue = [];
+      for (let i = 0; i < settings.kanaCount; i++) {
+        queue.push(getRandomKana());
+      }
+      renderQueue();
+      setCurrent();
+    }
+
+    function renderQueue() {
+      kanaStream.innerHTML = '';
+      queue.forEach((kana, i) => {
+        const span = document.createElement('span');
+        span.textContent = kana;
+        span.className = 'kana';
+        if (i === 0) span.classList.add('active');
+        kanaStream.appendChild(span);
+      });
+    }
+
+    function setCurrent() {
+      currentKana = queue[0];
+      expectedRomaji = kanaMap[currentKana];
+      mistakeCount = 0;
+      startTime = performance.now();
+      hintEl.textContent = '';
+    }
+
+    inputBox.addEventListener('input', () => {
+      const typed = inputBox.value.trim().toLowerCase();
+
+      if (expectedRomaji.startsWith(typed)) {
+        inputBox.className = 'correct';
+        if (typed === expectedRomaji) {
+          const timeTaken = (performance.now() - startTime) / 1000;
+          updateStats(currentKana, true, timeTaken);
+
+          queue.shift();
+          queue.push(getRandomKana());
+          renderQueue();
+          setCurrent();
+          inputBox.value = '';
+        }
+      } else {
+        mistakeCount++;
+        updateStats(currentKana, false, 0);
+        inputBox.className = 'incorrect';
+        inputBox.value = '';
+
+        if (mistakeCount >= 3) {
+          hintEl.textContent = `💡 Hint: ${expectedRomaji[0]}_`;
+        }
+      }
+    });
+
+    initQueue();
+  </script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kana Stats</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <h1>Kana Stats</h1>
+  <button id="resetBtn">🔄 Reset Stats</button>
+  <table>
+    <thead>
+      <tr>
+        <th>Kana</th>
+        <th>Correct</th>
+        <th>Incorrect</th>
+        <th>Accuracy</th>
+        <th>Avg Time (s)</th>
+      </tr>
+    </thead>
+    <tbody id="statsTable"></tbody>
+  </table>
+  <p><a href="index.html">← Back to Game</a></p>
+
+  <script type="module">
+    import { loadStats, resetStats } from './storage.js';
+
+    const tableBody = document.getElementById('statsTable');
+    const resetBtn = document.getElementById('resetBtn');
+
+    function renderStats() {
+      const stats = loadStats();
+      tableBody.innerHTML = '';
+      const entries = Object.entries(stats).sort((a, b) => a[0].localeCompare(b[0]));
+
+      for (let [kana, { correct, incorrect, timeSpent }] of entries) {
+        const total = correct + incorrect;
+        const accuracy = total ? ((correct / total) * 100).toFixed(1) + '%' : '-';
+        const avgTime = correct ? (timeSpent / correct).toFixed(2) : '-';
+        const row = `
+          <tr>
+            <td>${kana}</td>
+            <td>${correct}</td>
+            <td>${incorrect}</td>
+            <td>${accuracy}</td>
+            <td>${avgTime}</td>
+          </tr>`;
+        tableBody.insertAdjacentHTML('beforeend', row);
+      }
+    }
+
+    resetBtn.addEventListener('click', () => {
+      if (confirm('Are you sure you want to reset all stats?')) {
+        resetStats();
+        renderStats();
+      }
+    });
+
+    renderStats();
+  </script>
+</body>
+</html>
