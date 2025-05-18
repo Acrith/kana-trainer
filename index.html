@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="="en">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Kana Typing Trainer</title>
@@ -114,18 +114,22 @@
       })
     );
 
-    // If no kana selected, warn and stop
     if (kanaKeys.length === 0) {
       document.body.innerHTML = '<p style="color:red;">❗ No kana selected in settings. Please <a href="settings.html">go back</a> and choose kana to practice.</p>';
       throw new Error('No kana selected');
     }
+
+    // 🔧 Pre-initialize all session stats
+    const sessionStats = {};
+    kanaKeys.forEach(kana => {
+      sessionStats[kana] = { correct: 0, incorrect: 0 };
+    });
 
     let queue = [];
     let currentKana = '';
     let expectedRomaji = '';
     let mistakeCount = 0;
     let startTime = performance.now();
-    const sessionStats = {};
 
     function getRandomKana() {
       return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
@@ -138,7 +142,7 @@
       }
       renderQueue();
       setCurrent();
-      renderStatsGrid(); // ✅ call AFTER queue and kanaKeys are set
+      renderStatsGrid(); // ✅ Called after keys are populated
     }
 
     function renderQueue() {
@@ -169,7 +173,6 @@
           const timeTaken = (performance.now() - startTime) / 1000;
           updateStats(currentKana, true, timeTaken);
 
-          sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
           sessionStats[currentKana].correct++;
 
           queue.shift();
@@ -183,7 +186,6 @@
         mistakeCount++;
         updateStats(currentKana, false, 0);
 
-        sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
         sessionStats[currentKana].incorrect++;
 
         inputBox.className = 'incorrect';
@@ -202,8 +204,8 @@
       const groupData = { ...HIRAGANA_GROUPS, ...KATAKANA_GROUPS };
 
       for (const [group, kanaList] of Object.entries(groupData)) {
-        const hasKana = kanaList.some(kana => kanaKeys.includes(kana));
-        if (!hasKana) continue;
+        const groupKanas = kanaList.filter(kana => kanaKeys.includes(kana));
+        if (groupKanas.length === 0) continue;
 
         const block = document.createElement('div');
         block.className = 'group-block';
@@ -213,10 +215,8 @@
         label.textContent = group.toUpperCase();
         block.appendChild(label);
 
-        kanaList.forEach(kana => {
-          if (!kanaKeys.includes(kana)) return;
-
-          const stat = sessionStats[kana] || { correct: 0, incorrect: 0 };
+        groupKanas.forEach(kana => {
+          const stat = sessionStats[kana];
           const span = document.createElement('span');
           span.textContent = kana;
           span.className = 'stat-kana';
