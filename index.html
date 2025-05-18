@@ -4,6 +4,67 @@
   <meta charset="UTF-8" />
   <title>Kana Typing Trainer</title>
   <link rel="stylesheet" href="style.css" />
+  <style>
+    #kanaStream {
+      margin-bottom: 20px;
+      font-size: 1.8rem;
+    }
+
+    .kana {
+      color: #aaa;
+    }
+
+    .active {
+      font-weight: bold;
+      color: #000;
+    }
+
+    #sessionStats {
+      margin-top: 40px;
+    }
+
+    .group-bar {
+      display: flex;
+      overflow-x: auto;
+      gap: 20px;
+      padding: 10px 0;
+    }
+
+    .group-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 60px;
+    }
+
+    .group-label {
+      font-size: 0.9em;
+      font-weight: bold;
+      color: #555;
+      margin-bottom: 4px;
+    }
+
+    .stat-kana {
+      padding: 4px 6px;
+      margin: 2px 0;
+      font-size: 18px;
+      border-radius: 4px;
+      background: #eee;
+      min-width: 28px;
+      text-align: center;
+      border: 1px solid transparent;
+    }
+
+    .stat-kana.correct {
+      background: #c8f7c5;
+      border-color: #4caf50;
+    }
+
+    .stat-kana.incorrect {
+      background: #f7c5c5;
+      border-color: #e53935;
+    }
+  </style>
 </head>
 <body>
   <h1>Kana Typing Trainer</h1>
@@ -14,8 +75,13 @@
 
   <p>
     <a href="settings.html">⚙️ Settings</a> |
-    <a href="stats.html">📊 Stats</a>
+    <a href="stats.html">📊 Lifetime Stats</a>
   </p>
+
+  <div id="sessionStats">
+    <h3>📊 Live Session Stats</h3>
+    <div id="statsGrid" class="group-bar"></div>
+  </div>
 
   <script type="module">
     import {
@@ -27,25 +93,26 @@
     const inputBox = document.getElementById('inputBox');
     const kanaStream = document.getElementById('kanaStream');
     const hintEl = document.getElementById('hint');
+    const statsGrid = document.getElementById('statsGrid');
 
     const settings = loadSettings();
     let kanaMap = {};
     let kanaKeys = [];
 
-    // Build pool from selected groups
-    settings.hiraganaGroups.forEach(group => {
+    // Build kana pool
+    settings.hiraganaGroups.forEach(group =>
       (HIRAGANA_GROUPS[group] || []).forEach(kana => {
         kanaMap[kana] = HIRAGANA[kana];
         kanaKeys.push(kana);
-      });
-    });
+      })
+    );
 
-    settings.katakanaGroups.forEach(group => {
+    settings.katakanaGroups.forEach(group =>
       (KATAKANA_GROUPS[group] || []).forEach(kana => {
         kanaMap[kana] = KATAKANA[kana];
         kanaKeys.push(kana);
-      });
-    });
+      })
+    );
 
     if (kanaKeys.length === 0) {
       alert('❗ You must select at least one kana group in settings.');
@@ -56,6 +123,46 @@
     let expectedRomaji = '';
     let mistakeCount = 0;
     let startTime = performance.now();
+
+    const sessionStats = {};
+
+    // Render live stats
+    function renderStatsGrid() {
+      statsGrid.innerHTML = '';
+
+      const groupData = { ...HIRAGANA_GROUPS, ...KATAKANA_GROUPS };
+
+      for (const [group, kanaList] of Object.entries(groupData)) {
+        if (
+          !settings.hiraganaGroups.includes(group) &&
+          !settings.katakanaGroups.includes(group)
+        ) continue;
+
+        const block = document.createElement('div');
+        block.className = 'group-block';
+
+        const label = document.createElement('div');
+        label.className = 'group-label';
+        label.textContent = group.toUpperCase();
+        block.appendChild(label);
+
+        kanaList.forEach(kana => {
+          if (!kanaKeys.includes(kana)) return;
+
+          const stat = sessionStats[kana] || { correct: 0, incorrect: 0 };
+          const span = document.createElement('span');
+          span.textContent = kana;
+          span.className = 'stat-kana';
+
+          if (stat.correct > 0) span.classList.add('correct');
+          else if (stat.incorrect > 0) span.classList.add('incorrect');
+
+          block.appendChild(span);
+        });
+
+        statsGrid.appendChild(block);
+      }
+    }
 
     function getRandomKana() {
       return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
@@ -97,26 +204,35 @@
         if (typed === expectedRomaji) {
           const timeTaken = (performance.now() - startTime) / 1000;
           updateStats(currentKana, true, timeTaken);
+          sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
+          sessionStats[currentKana].correct++;
 
           queue.shift();
           queue.push(getRandomKana());
           renderQueue();
           setCurrent();
           inputBox.value = '';
+          renderStatsGrid();
         }
       } else {
         mistakeCount++;
         updateStats(currentKana, false, 0);
+        sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
+        sessionStats[currentKana].incorrect++;
+
         inputBox.className = 'incorrect';
         inputBox.value = '';
 
         if (mistakeCount >= 3) {
           hintEl.textContent = `💡 Hint: ${expectedRomaji[0]}_`;
         }
+
+        renderStatsGrid();
       }
     });
 
     initQueue();
+    renderStatsGrid();
   </script>
 </body>
 </html>
