@@ -23,6 +23,13 @@
       margin-top: 40px;
     }
 
+    #summaryStats {
+      margin-bottom: 10px;
+      text-align: left;
+      font-family: sans-serif;
+      font-size: 1em;
+    }
+
     .group-bar {
       display: flex;
       overflow-x: auto;
@@ -79,7 +86,7 @@
   </p>
 
   <div id="sessionStats">
-    <h3>📊 Live Session Stats</h3>
+    <div id="summaryStats"></div>
     <div id="statsGrid" class="group-bar"></div>
   </div>
 
@@ -94,12 +101,12 @@
     const kanaStream = document.getElementById('kanaStream');
     const hintEl = document.getElementById('hint');
     const statsGrid = document.getElementById('statsGrid');
+    const summaryEl = document.getElementById('summaryStats');
 
     const settings = loadSettings();
     let kanaMap = {};
     let kanaKeys = [];
 
-    // Build kana pool from selected groups
     settings.hiraganaGroups.forEach(group =>
       (HIRAGANA_GROUPS[group] || []).forEach(kana => {
         kanaMap[kana] = HIRAGANA[kana];
@@ -120,6 +127,7 @@
     }
 
     const sessionStats = {};
+    const sessionTotals = { correct: 0, incorrect: 0 };
 
     let queue = [];
     let currentKana = '';
@@ -171,6 +179,7 @@
 
           sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
           sessionStats[currentKana].correct++;
+          sessionTotals.correct++;
 
           queue.shift();
           queue.push(getRandomKana());
@@ -185,6 +194,7 @@
 
         sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
         sessionStats[currentKana].incorrect++;
+        sessionTotals.incorrect++;
 
         inputBox.className = 'incorrect';
         inputBox.value = '';
@@ -199,6 +209,14 @@
 
     function renderStatsGrid() {
       statsGrid.innerHTML = '';
+
+      const total = sessionTotals.correct + sessionTotals.incorrect;
+      const accuracy = total ? Math.round((sessionTotals.correct / total) * 100) : 0;
+
+      summaryEl.innerHTML = `
+        <p><strong>📈 Accuracy:</strong> ${accuracy}% |
+           ✅ ${sessionTotals.correct} / ❌ ${sessionTotals.incorrect} (${total} total)</p>
+      `;
 
       const groupData = {};
       settings.hiraganaGroups.forEach(group => {
