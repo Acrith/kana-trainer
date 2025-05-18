@@ -9,27 +9,37 @@
       padding: 20px;
     }
 
-    #kanaStream {
+    #kanaStreamWrapper {
+      display: flex;
+      gap: 10px;
       margin-bottom: 10px;
-      font-size: 1.8rem;
+    }
+
+    .kana-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-width: 28px;
     }
 
     .kana {
+      font-size: 1.8rem;
       color: #aaa;
     }
 
-    .active {
+    .kana.active {
       font-weight: bold;
       color: #000;
     }
 
-    #romajiHint {
-      margin-bottom: 20px;
-      font-size: 0.95rem;
+    .kana-hint {
+      font-size: 0.8rem;
       color: #777;
+      height: 1em;
+      margin-bottom: 2px;
     }
 
-    input {
+    #inputBox {
       font-size: 1.2rem;
       padding: 8px;
       width: 100%;
@@ -85,10 +95,8 @@
   <h1>📘 Kana Learning Mode</h1>
   <div id="modeInfo"></div>
 
-  <div id="kanaStream"></div>
-  <div id="romajiHint"></div>
+  <div id="kanaStreamWrapper"></div>
   <button id="revealBtn" class="reveal-btn">❓ Reveal Romaji (5s)</button>
-
   <input type="text" id="inputBox" placeholder="Type romaji..." autofocus />
   <p id="hint"></p>
 
@@ -107,11 +115,10 @@
     import { updateStats } from './storage.js';
 
     const inputBox = document.getElementById('inputBox');
-    const kanaStream = document.getElementById('kanaStream');
+    const kanaStreamWrapper = document.getElementById('kanaStreamWrapper');
     const hintEl = document.getElementById('hint');
     const groupProgressEl = document.getElementById('groupProgress');
     const modeEl = document.getElementById('modeInfo');
-    const romajiHintEl = document.getElementById('romajiHint');
     const revealBtn = document.getElementById('revealBtn');
 
     const params = new URLSearchParams(location.search);
@@ -127,6 +134,8 @@
       mixed: "Mixed Mode"
     };
 
+    modeEl.textContent = `🧭 Mode: ${MODE_LABELS[mode]}`;
+
     const GROUPS = {
       hiragana: HIRAGANA_GROUPS,
       katakana: KATAKANA_GROUPS
@@ -136,8 +145,6 @@
       hiragana: HIRAGANA,
       katakana: KATAKANA
     };
-
-    modeEl.textContent = `🧭 Mode: ${MODE_LABELS[mode]}`;
 
     const LEARNING_SEQUENCE = [
       "vowels", "k", "s", "t", "n", "h", "m", "y", "r", "w", "g", "z", "d", "b", "p"
@@ -173,6 +180,7 @@
     let mistakeCount = 0;
     let startTime = performance.now();
     let revealTimer = null;
+    let revealActive = false;
 
     function getRandomKana() {
       return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
@@ -189,33 +197,38 @@
     }
 
     function renderQueue() {
-      kanaStream.innerHTML = '';
-      romajiHintEl.textContent = '';
+      kanaStreamWrapper.innerHTML = '';
 
       queue.forEach((kana, i) => {
+        const block = document.createElement('div');
+        block.className = 'kana-block';
+
+        const stat = sessionStats[kana] || { correct: 0, incorrect: 0, shown: 0 };
+        const total = stat.correct + stat.incorrect;
+        const accuracy = total ? stat.correct / total : 0;
+
+        stat.shown = (stat.shown || 0) + 1;
+        sessionStats[kana] = stat;
+
+        const showHint =
+          revealActive ||
+          stat.shown <= 3 ||
+          accuracy < 0.5 ||
+          stat.correct < 3;
+
+        const hint = document.createElement('div');
+        hint.className = 'kana-hint';
+        hint.textContent = showHint ? kanaMap[kana] : '';
+
         const span = document.createElement('span');
         span.textContent = kana;
         span.className = 'kana';
         if (i === 0) span.classList.add('active');
-        kanaStream.appendChild(span);
+
+        block.appendChild(hint);
+        block.appendChild(span);
+        kanaStreamWrapper.appendChild(block);
       });
-
-      const current = queue[0];
-      const stat = sessionStats[current] || { correct: 0, incorrect: 0, shown: 0 };
-      const total = stat.correct + stat.incorrect;
-      const accuracy = total ? stat.correct / total : 0;
-
-      stat.shown = (stat.shown || 0) + 1;
-      sessionStats[current] = stat;
-
-      const showHint =
-        stat.shown <= 3 ||
-        accuracy < 0.5 ||
-        stat.correct < 3;
-
-      if (showHint) {
-        romajiHintEl.textContent = `Hint: ${kanaMap[current]}`;
-      }
     }
 
     function setCurrent() {
@@ -339,12 +352,13 @@
 
     revealBtn.addEventListener('click', () => {
       if (revealTimer) return;
-
-      romajiHintEl.textContent = queue.map(k => kanaMap[k]).join(" ");
+      revealActive = true;
+      renderQueue();
       revealBtn.disabled = true;
 
       revealTimer = setTimeout(() => {
-        romajiHintEl.textContent = '';
+        revealActive = false;
+        renderQueue();
         revealBtn.disabled = false;
         revealTimer = null;
       }, 5000);
