@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Kana Learning Mode</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+
+    #kanaStream {
+      margin-bottom: 20px;
+      font-size: 1.8rem;
+    }
+
+    .kana {
+      color: #aaa;
+    }
+
+    .active {
+      font-weight: bold;
+      color: #000;
+    }
+
+    input {
+      font-size: 1.2rem;
+      padding: 8px;
+      width: 100%;
+      max-width: 300px;
+      margin-bottom: 10px;
+    }
+
+    .group-progress {
+      margin-top: 20px;
+      margin-bottom: 10px;
+    }
+
+    .bar-container {
+      background: #eee;
+      border-radius: 6px;
+      height: 16px;
+      width: 100%;
+      max-width: 300px;
+      margin: 6px 0;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      background: linear-gradient(to right, #f44336, #ffeb3b, #4caf50);
+      border-radius: 6px;
+      width: 0%;
+    }
+
+    .bar-label {
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    footer {
+      margin-top: 40px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>📘 Kana Learning Mode</h1>
+  <div id="modeInfo"></div>
+
+  <div id="kanaStream"></div>
+  <input type="text" id="inputBox" placeholder="Type romaji..." autofocus />
+  <p id="hint"></p>
+
+  <h3>Progress</h3>
+  <div id="groupProgress"></div>
+
+  <footer>
+    <p><a href="learn.html">🔙 Back to Mode Select</a></p>
+  </footer>
+
+  <script type="module">
+    import {
+      HIRAGANA, KATAKANA,
+      HIRAGANA_GROUPS, KATAKANA_GROUPS
+    } from './kana-data.js';
+    import { updateStats } from './storage.js';
+
+    const inputBox = document.getElementById('inputBox');
+    const kanaStream = document.getElementById('kanaStream');
+    const hintEl = document.getElementById('hint');
+    const groupProgressEl = document.getElementById('groupProgress');
+    const modeEl = document.getElementById('modeInfo');
+
+    const params = new URLSearchParams(location.search);
+    const mode = params.get('mode') || 'hiragana';
+
+    const isMixed = mode === 'mixed';
+    const isHiragana = mode === 'hiragana' || isMixed;
+    const isKatakana = mode === 'katakana' || isMixed;
+
+    const MODE_LABELS = {
+      hiragana: "Hiragana Only",
+      katakana: "Katakana Only",
+      mixed: "Mixed Mode"
+    };
+
+    const GROUPS = {
+      hiragana: HIRAGANA_GROUPS,
+      katakana: KATAKANA_GROUPS
+    };
+
+    const KANA = {
+      hiragana: HIRAGANA,
+      katakana: KATAKANA
+    };
+
+    modeEl.textContent = `🧭 Mode: ${MODE_LABELS[mode]}`;
+
+    const LEARNING_SEQUENCE = [
+      "vowels", "k", "s", "t", "n", "h", "m", "y", "r", "w", "g", "z", "d", "b", "p"
+    ];
+
+    const unlockedKey = `unlockedGroups_${mode}`;
+    let unlockedGroups = JSON.parse(localStorage.getItem(unlockedKey) || '["vowels"]');
+
+    let kanaMap = {};
+    let kanaKeys = [];
+
+    if (isHiragana) {
+      unlockedGroups.forEach(group =>
+        (HIRAGANA_GROUPS[group] || []).forEach(kana => {
+          kanaMap[kana] = HIRAGANA[kana];
+          kanaKeys.push(kana);
+        })
+      );
+    }
+    if (isKatakana) {
+      unlockedGroups.forEach(group =>
+        (KATAKANA_GROUPS[group] || []).forEach(kana => {
+          kanaMap[kana] = KATAKANA[kana];
+          kanaKeys.push(kana);
+        })
+      );
+    }
+
+    const sessionStats = {};
+    let queue = [];
+    let currentKana = '';
+    let expectedRomaji = '';
+    let mistakeCount = 0;
+    let startTime = performance.now();
+
+    function getRandomKana() {
+      return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
+    }
+
+    function initQueue() {
+      queue = [];
+      for (let i = 0; i < 10; i++) {
+        queue.push(getRandomKana());
+      }
+      renderQueue();
+      setCurrent();
+      renderProgress();
+    }
+
+    function renderQueue() {
+      kanaStream.innerHTML = '';
+      queue.forEach((kana, i) => {
+        const span = document.createElement('span');
+        span.textContent = kana;
+        span.className = 'kana';
+        if (i === 0) span.classList.add('active');
+        kanaStream.appendChild(span);
+      });
+    }
+
+    function setCurrent() {
+      currentKana = queue[0];
+      expectedRomaji = kanaMap[currentKana];
+      mistakeCount = 0;
+      startTime = performance.now();
+      hintEl.textContent = '';
+    }
+
+    function renderProgress() {
+      groupProgressEl.innerHTML = '';
+      unlockedGroups.forEach(group => {
+        let groupKana = [];
+        if (isHiragana) groupKana.push(...(HIRAGANA_GROUPS[group] || []));
+        if (isKatakana) groupKana.push(...(KATAKANA_GROUPS[group] || []));
+
+        let total = 0, correct = 0;
+
+        groupKana.forEach(kana => {
+          const stat = sessionStats[kana];
+          if (stat) {
+            total += stat.correct + stat.incorrect;
+            correct += stat.correct;
+          }
+        });
+
+        const acc = total ? correct / total : 0;
+        const percent = Math.round(acc * 100);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'group-progress';
+
+        const label = document.createElement('div');
+        label.className = 'bar-label';
+        label.textContent = `${group.toUpperCase()} — ${percent}%`;
+
+        const bar = document.createElement('div');
+        bar.className = 'bar-container';
+
+        const fill = document.createElement('div');
+        fill.className = 'bar-fill';
+        fill.style.width = `${percent}%`;
+
+        bar.appendChild(fill);
+        wrapper.appendChild(label);
+        wrapper.appendChild(bar);
+        groupProgressEl.appendChild(wrapper);
+      });
+    }
+
+    function checkUnlock() {
+      let allPassed = true;
+
+      for (const group of unlockedGroups) {
+        let groupKana = [];
+        if (isHiragana) groupKana.push(...(HIRAGANA_GROUPS[group] || []));
+        if (isKatakana) groupKana.push(...(KATAKANA_GROUPS[group] || []));
+
+        for (const kana of groupKana) {
+          const stat = sessionStats[kana];
+          const total = stat?.correct + stat?.incorrect || 0;
+          const acc = total ? stat.correct / total : 0;
+          if (total < 5 || acc < 0.9) {
+            allPassed = false;
+            break;
+          }
+        }
+
+        if (!allPassed) break;
+      }
+
+      if (allPassed) {
+        const nextGroup = LEARNING_SEQUENCE.find(g => !unlockedGroups.includes(g));
+        if (nextGroup) {
+          unlockedGroups.push(nextGroup);
+          localStorage.setItem(unlockedKey, JSON.stringify(unlockedGroups));
+          alert(`🎉 You unlocked: ${nextGroup.toUpperCase()}`);
+          location.reload();
+        }
+      }
+    }
+
+    inputBox.addEventListener('input', () => {
+      const typed = inputBox.value.trim().toLowerCase();
+
+      if (expectedRomaji.startsWith(typed)) {
+        inputBox.className = 'correct';
+        if (typed === expectedRomaji) {
+          const timeTaken = (performance.now() - startTime) / 1000;
+          updateStats(currentKana, true, timeTaken);
+
+          sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
+          sessionStats[currentKana].correct++;
+
+          queue.shift();
+          queue.push(getRandomKana());
+          renderQueue();
+          setCurrent();
+          inputBox.value = '';
+          renderProgress();
+          checkUnlock();
+        }
+      } else {
+        mistakeCount++;
+        updateStats(currentKana, false, 0);
+
+        sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
+        sessionStats[currentKana].incorrect++;
+
+        inputBox.className = 'incorrect';
+        inputBox.value = '';
+
+        if (mistakeCount >= 3) {
+          hintEl.textContent = `💡 Hint: ${expectedRomaji[0]}_`;
+        }
+
+        renderProgress();
+      }
+    });
+
+    initQueue();
+  </script>
+</body>
+</html>
