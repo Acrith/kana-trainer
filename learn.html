@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Learning Mode – Choose Script</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      padding: 40px;
+    }
+
+    h1 {
+      margin-bottom: 30px;
+    }
+
+    .mode-button {
+      display: inline-block;
+      margin: 15px;
+      padding: 20px 40px;
+      font-size: 18px;
+      border: none;
+      border-radius: 8px;
+      background: #3c90f7;
+      color: white;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .mode-button:hover {
+      background: #2d78d0;
+    }
+
+    .mode-desc {
+      font-size: 14px;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    .mode-box {
+      margin: 20px auto;
+    }
+
+    footer {
+      margin-top: 50px;
+      font-size: 14px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+  <h1>🧠 Kana Learning Mode</h1>
+  <p>Choose which script you'd like to learn:</p>
+
+  <div class="mode-box">
+    <button class="mode-button" onclick="startMode('hiragana')">Hiragana</button>
+    <div class="mode-desc">Learn Hiragana kana progressively</div>
+  </div>
+
+  <div class="mode-box">
+    <button class="mode-button" onclick="startMode('katakana')">Katakana</button>
+    <div class="mode-desc">Learn Katakana kana from scratch</div>
+  </div>
+
+  <div class="mode-box">
+    <button class="mode-button" onclick="startMode('mixed')">Mixed</button>
+    <div class="mode-desc">Learn both together (advanced)</div>
+  </div>
+
+  <footer>
+    <p><a href="index.html">🔙 Back to Practice Mode</a></p>
+  </footer>
+
+  <script>
+    function startMode(mode) {
+      window.location.href = `learn-session.html?mode=${mode}`;
+    }
+  </script>
+</body>
+</html>
