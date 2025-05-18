@@ -54,22 +54,12 @@
     .stat-kana {
       padding: 4px 6px;
       margin: 2px 0;
-      font-size: 18px;
+      font-size: 16px;
       border-radius: 4px;
-      background: #eee;
-      min-width: 28px;
+      min-width: 48px;
       text-align: center;
-      border: 1px solid transparent;
-    }
-
-    .stat-kana.correct {
-      background: #c8f7c5;
-      border-color: #4caf50;
-    }
-
-    .stat-kana.incorrect {
-      background: #f7c5c5;
-      border-color: #e53935;
+      border: 1px solid #ccc;
+      font-family: monospace;
     }
   </style>
 </head>
@@ -239,15 +229,19 @@
         block.appendChild(label);
 
         kanaList.forEach(kana => {
-          if (!sessionStats[kana]) return;
-
           const stat = sessionStats[kana];
-          const span = document.createElement('span');
-          span.textContent = kana;
-          span.className = 'stat-kana';
+          if (!stat) return;
 
-          if (stat.correct > 0) span.classList.add('correct');
-          else if (stat.incorrect > 0) span.classList.add('incorrect');
+          const totalAttempts = stat.correct + stat.incorrect;
+          const accuracy = totalAttempts ? stat.correct / totalAttempts : 0;
+          const hue = Math.round(accuracy * 120); // red (0) → green (120)
+          const backgroundColor = `hsl(${hue}, 70%, 80%)`;
+
+          const span = document.createElement('span');
+          span.className = 'stat-kana';
+          span.style.backgroundColor = backgroundColor;
+          span.title = `Accuracy: ${(accuracy * 100).toFixed(0)}%, Attempts: ${totalAttempts}`;
+          span.textContent = `${kana} (${stat.correct}/${totalAttempts})`;
 
           block.appendChild(span);
         });
