@@ -1,92 +1,68 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Kana Learning Mode</title>
+  <link rel="stylesheet" href="style.css" />
   <style>
-    body {
-      font-family: sans-serif;
-      padding: 20px;
-    }
-
-    #kanaStreamWrapper {
-      display: flex;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
-
-    .kana-block {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-width: 28px;
-    }
-
-    .kana {
+    #kanaStream {
+      margin-bottom: 20px;
       font-size: 1.8rem;
-      color: #aaa;
     }
-
-    .kana.active {
+    .kana {
+      color: #aaa;
+      display: inline-block;
+      text-align: center;
+      width: 2em;
+    }
+    .active {
       font-weight: bold;
       color: #000;
     }
-
     .kana-hint {
-      font-size: 0.8rem;
+      display: block;
+      font-size: 0.7rem;
       color: #777;
-      height: 1em;
-      margin-bottom: 2px;
     }
-
     #inputBox {
       font-size: 1.2rem;
       padding: 8px;
-      width: 100%;
-      max-width: 300px;
+      width: 300px;
       margin-bottom: 10px;
     }
-
-    .group-progress {
+    .group-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
       margin-top: 20px;
-      margin-bottom: 10px;
     }
-
-    .bar-container {
-      background: #eee;
-      border-radius: 6px;
-      height: 16px;
-      width: 100%;
-      max-width: 300px;
-      margin: 6px 0;
-      position: relative;
+    .group-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
     }
-
-    .bar-fill {
-      height: 100%;
-      background: linear-gradient(to right, #f44336, #ffeb3b, #4caf50);
-      border-radius: 6px;
-      width: 0%;
-    }
-
-    .bar-label {
-      font-size: 14px;
+    .group-label {
+      font-size: 0.8rem;
+      font-weight: bold;
       margin-bottom: 4px;
     }
-
-    .reveal-btn {
-      margin-bottom: 16px;
-      padding: 6px 14px;
-      font-size: 14px;
-      border: none;
+    .stat-kana {
+      padding: 4px 6px;
+      margin: 2px;
+      font-size: 16px;
       border-radius: 4px;
-      background: #3c90f7;
-      color: white;
-      cursor: pointer;
+      background: #eee;
+      min-width: 28px;
+      text-align: center;
+      border: 1px solid #ccc;
     }
-
-    footer {
-      margin-top: 40px;
+    .stat-kana.mastered {
+      background: #c8f7c5;
+      border-color: #4caf50;
+    }
+    .reveal-btn {
+      margin-bottom: 10px;
+      padding: 5px 10px;
       font-size: 14px;
     }
   </style>
@@ -95,17 +71,14 @@
   <h1>📘 Kana Learning Mode</h1>
   <div id="modeInfo"></div>
 
-  <div id="kanaStreamWrapper"></div>
-  <button id="revealBtn" class="reveal-btn">❓ Reveal Romaji (5s)</button>
+  <div id="kanaStream"></div>
+  <button class="reveal-btn" id="revealBtn">❓ Reveal Romaji (5s)</button>
   <input type="text" id="inputBox" placeholder="Type romaji..." autofocus />
   <p id="hint"></p>
 
-  <h3>Progress</h3>
-  <div id="groupProgress"></div>
+  <div id="statsGrid" class="group-bar"></div>
 
-  <footer>
-    <p><a href="learn.html">🔙 Back to Mode Select</a></p>
-  </footer>
+  <p><a href="learn.html">🔙 Back to mode select</a></p>
 
   <script type="module">
     import {
@@ -115,70 +88,51 @@
     import { updateStats } from './storage.js';
 
     const inputBox = document.getElementById('inputBox');
-    const kanaStreamWrapper = document.getElementById('kanaStreamWrapper');
+    const kanaStream = document.getElementById('kanaStream');
+    const statsGrid = document.getElementById('statsGrid');
     const hintEl = document.getElementById('hint');
-    const groupProgressEl = document.getElementById('groupProgress');
-    const modeEl = document.getElementById('modeInfo');
     const revealBtn = document.getElementById('revealBtn');
+    const modeEl = document.getElementById('modeInfo');
 
-    const params = new URLSearchParams(location.search);
-    const mode = params.get('mode') || 'hiragana';
-
-    const isMixed = mode === 'mixed';
-    const isHiragana = mode === 'hiragana' || isMixed;
-    const isKatakana = mode === 'katakana' || isMixed;
-
-    const MODE_LABELS = {
-      hiragana: "Hiragana Only",
-      katakana: "Katakana Only",
-      mixed: "Mixed Mode"
-    };
-
-    modeEl.textContent = `🧭 Mode: ${MODE_LABELS[mode]}`;
+    const mode = new URLSearchParams(location.search).get("mode") || "hiragana";
+    const isHiragana = mode === "hiragana" || mode === "mixed";
+    const isKatakana = mode === "katakana" || mode === "mixed";
+    const unlockedKey = `unlockedGroups_${mode}`;
+    const LEARNING_SEQUENCE = [
+      "vowels", "k", "s", "t", "n", "h", "m", "y", "r", "w", "g", "z", "d", "b", "p"
+    ];
 
     const GROUPS = {
       hiragana: HIRAGANA_GROUPS,
       katakana: KATAKANA_GROUPS
     };
-
     const KANA = {
       hiragana: HIRAGANA,
       katakana: KATAKANA
     };
 
-    const LEARNING_SEQUENCE = [
-      "vowels", "k", "s", "t", "n", "h", "m", "y", "r", "w", "g", "z", "d", "b", "p"
-    ];
+    modeEl.textContent = `🧭 Mode: ${mode.toUpperCase()}`;
 
-    const unlockedKey = `unlockedGroups_${mode}`;
     let unlockedGroups = JSON.parse(localStorage.getItem(unlockedKey) || '["vowels"]');
-
     let kanaMap = {};
     let kanaKeys = [];
 
-    if (isHiragana) {
-      unlockedGroups.forEach(group =>
-        (HIRAGANA_GROUPS[group] || []).forEach(kana => {
-          kanaMap[kana] = HIRAGANA[kana];
-          kanaKeys.push(kana);
-        })
-      );
-    }
-    if (isKatakana) {
-      unlockedGroups.forEach(group =>
-        (KATAKANA_GROUPS[group] || []).forEach(kana => {
-          kanaMap[kana] = KATAKANA[kana];
-          kanaKeys.push(kana);
-        })
-      );
-    }
+    if (isHiragana) unlockedGroups.forEach(g =>
+      GROUPS.hiragana[g]?.forEach(k => {
+        kanaMap[k] = HIRAGANA[k];
+        kanaKeys.push(k);
+      })
+    );
+    if (isKatakana) unlockedGroups.forEach(g =>
+      GROUPS.katakana[g]?.forEach(k => {
+        kanaMap[k] = KATAKANA[k];
+        kanaKeys.push(k);
+      })
+    );
 
+    let queue = [], currentKana = '', expectedRomaji = '', mistakeCount = 0;
     const sessionStats = {};
-    let queue = [];
-    let currentKana = '';
-    let expectedRomaji = '';
-    let mistakeCount = 0;
-    let startTime = performance.now();
+    const correctHistory = {};
     let revealTimer = null;
     let revealActive = false;
 
@@ -188,46 +142,29 @@
 
     function initQueue() {
       queue = [];
-      for (let i = 0; i < 10; i++) {
-        queue.push(getRandomKana());
-      }
+      for (let i = 0; i < 10; i++) queue.push(getRandomKana());
       renderQueue();
       setCurrent();
-      renderProgress();
+      renderStatsGrid();
     }
 
     function renderQueue() {
-      kanaStreamWrapper.innerHTML = '';
-
+      kanaStream.innerHTML = '';
       queue.forEach((kana, i) => {
-        const block = document.createElement('div');
-        block.className = 'kana-block';
-
+        const span = document.createElement('span');
+        const romaji = kanaMap[kana];
         const stat = sessionStats[kana] || { correct: 0, incorrect: 0, shown: 0 };
         const total = stat.correct + stat.incorrect;
-        const accuracy = total ? stat.correct / total : 0;
 
         stat.shown = (stat.shown || 0) + 1;
         sessionStats[kana] = stat;
 
         const showHint =
-          revealActive ||
-          stat.shown <= 3 ||
-          accuracy < 0.5 ||
-          stat.correct < 3;
+          revealActive || stat.shown <= 3 || stat.incorrect > 0;
 
-        const hint = document.createElement('div');
-        hint.className = 'kana-hint';
-        hint.textContent = showHint ? kanaMap[kana] : '';
-
-        const span = document.createElement('span');
-        span.textContent = kana;
-        span.className = 'kana';
-        if (i === 0) span.classList.add('active');
-
-        block.appendChild(hint);
-        block.appendChild(span);
-        kanaStreamWrapper.appendChild(block);
+        span.className = 'kana' + (i === 0 ? ' active' : '');
+        span.innerHTML = `${showHint ? `<span class="kana-hint">${romaji}</span>` : ''}${kana}`;
+        kanaStream.appendChild(span);
       });
     }
 
@@ -235,118 +172,91 @@
       currentKana = queue[0];
       expectedRomaji = kanaMap[currentKana];
       mistakeCount = 0;
-      startTime = performance.now();
       hintEl.textContent = '';
     }
 
-    function renderProgress() {
-      groupProgressEl.innerHTML = '';
-      unlockedGroups.forEach(group => {
-        let groupKana = [];
-        if (isHiragana) groupKana.push(...(HIRAGANA_GROUPS[group] || []));
-        if (isKatakana) groupKana.push(...(KATAKANA_GROUPS[group] || []));
-
-        let total = 0, correct = 0;
-
-        groupKana.forEach(kana => {
-          const stat = sessionStats[kana];
-          if (stat) {
-            total += stat.correct + stat.incorrect;
-            correct += stat.correct;
-          }
-        });
-
-        const acc = total ? correct / total : 0;
-        const percent = Math.round(acc * 100);
-
-        const wrapper = document.createElement('div');
-        wrapper.className = 'group-progress';
-
-        const label = document.createElement('div');
-        label.className = 'bar-label';
-        label.textContent = `${group.toUpperCase()} — ${percent}%`;
-
-        const bar = document.createElement('div');
-        bar.className = 'bar-container';
-
-        const fill = document.createElement('div');
-        fill.className = 'bar-fill';
-        fill.style.width = `${percent}%`;
-
-        bar.appendChild(fill);
-        wrapper.appendChild(label);
-        wrapper.appendChild(bar);
-        groupProgressEl.appendChild(wrapper);
-      });
+    function isMastered(kana) {
+      const history = correctHistory[kana] || [];
+      if (history.length < 5) return false;
+      return history.slice(-5).every(Boolean);
     }
 
     function checkUnlock() {
-      let allPassed = true;
-
+      const allSeen = new Set(Object.keys(sessionStats));
       for (const group of unlockedGroups) {
         let groupKana = [];
-        if (isHiragana) groupKana.push(...(HIRAGANA_GROUPS[group] || []));
-        if (isKatakana) groupKana.push(...(KATAKANA_GROUPS[group] || []));
-
-        for (const kana of groupKana) {
-          const stat = sessionStats[kana];
-          const total = stat?.correct + stat?.incorrect || 0;
-          const acc = total ? stat.correct / total : 0;
-          if (total < 5 || acc < 0.9) {
-            allPassed = false;
-            break;
-          }
-        }
-
-        if (!allPassed) break;
+        if (isHiragana) groupKana.push(...(GROUPS.hiragana[group] || []));
+        if (isKatakana) groupKana.push(...(GROUPS.katakana[group] || []));
+        const seenKana = groupKana.filter(k => allSeen.has(k));
+        const allMastered = seenKana.every(k => isMastered(k));
+        if (!allMastered) return;
       }
+      const nextGroup = LEARNING_SEQUENCE.find(g => !unlockedGroups.includes(g));
+      if (nextGroup) {
+        unlockedGroups.push(nextGroup);
+        localStorage.setItem(unlockedKey, JSON.stringify(unlockedGroups));
+        alert(`🎉 Unlocked: ${nextGroup.toUpperCase()}`);
+        location.reload();
+      }
+    }
 
-      if (allPassed) {
-        const nextGroup = LEARNING_SEQUENCE.find(g => !unlockedGroups.includes(g));
-        if (nextGroup) {
-          unlockedGroups.push(nextGroup);
-          localStorage.setItem(unlockedKey, JSON.stringify(unlockedGroups));
-          alert(`🎉 You unlocked: ${nextGroup.toUpperCase()}`);
-          location.reload();
-        }
+    function renderStatsGrid() {
+      statsGrid.innerHTML = '';
+      const groupData = {};
+      if (isHiragana) unlockedGroups.forEach(g => groupData[g] = GROUPS.hiragana[g]);
+      if (isKatakana) unlockedGroups.forEach(g => groupData[g] = GROUPS.katakana[g]);
+
+      for (const [group, list] of Object.entries(groupData)) {
+        const block = document.createElement('div');
+        block.className = 'group-block';
+
+        const label = document.createElement('div');
+        label.className = 'group-label';
+        label.textContent = group.toUpperCase();
+        block.appendChild(label);
+
+        (list || []).forEach(kana => {
+          const span = document.createElement('span');
+          span.className = 'stat-kana';
+          const stat = sessionStats[kana] || { correct: 0, incorrect: 0 };
+          const total = stat.correct + stat.incorrect;
+          const text = `${kana} (${stat.correct}/${total})`;
+          span.textContent = text;
+          if (isMastered(kana)) span.classList.add('mastered');
+          block.appendChild(span);
+        });
+
+        statsGrid.appendChild(block);
       }
     }
 
     inputBox.addEventListener('input', () => {
       const typed = inputBox.value.trim().toLowerCase();
-
       if (expectedRomaji.startsWith(typed)) {
         inputBox.className = 'correct';
         if (typed === expectedRomaji) {
-          const timeTaken = (performance.now() - startTime) / 1000;
-          updateStats(currentKana, true, timeTaken);
-
           sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
           sessionStats[currentKana].correct++;
-
+          correctHistory[currentKana] = (correctHistory[currentKana] || []).concat(true).slice(-5);
+          updateStats(currentKana, true, 0);
           queue.shift();
           queue.push(getRandomKana());
           renderQueue();
           setCurrent();
           inputBox.value = '';
-          renderProgress();
+          renderStatsGrid();
           checkUnlock();
         }
       } else {
         mistakeCount++;
-        updateStats(currentKana, false, 0);
-
         sessionStats[currentKana] = sessionStats[currentKana] || { correct: 0, incorrect: 0 };
         sessionStats[currentKana].incorrect++;
-
+        correctHistory[currentKana] = (correctHistory[currentKana] || []).concat(false).slice(-5);
+        updateStats(currentKana, false, 0);
         inputBox.className = 'incorrect';
         inputBox.value = '';
-
-        if (mistakeCount >= 3) {
-          hintEl.textContent = `💡 Hint: ${expectedRomaji[0]}_`;
-        }
-
-        renderProgress();
+        if (mistakeCount >= 3) hintEl.textContent = `💡 Hint: ${expectedRomaji[0]}_`;
+        renderStatsGrid();
       }
     });
 
@@ -355,7 +265,6 @@
       revealActive = true;
       renderQueue();
       revealBtn.disabled = true;
-
       revealTimer = setTimeout(() => {
         revealActive = false;
         renderQueue();
