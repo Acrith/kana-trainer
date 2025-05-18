@@ -2,52 +2,68 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Settings</title>
+  <title>Kana Trainer Settings</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    .group-grid {
+    .section-title {
+      margin-top: 30px;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+
+    .group-container {
       display: flex;
       flex-wrap: wrap;
-      gap: 10px;
+      gap: 20px;
       margin: 10px 0 30px;
     }
 
-    .group-btn {
+    .group-column {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      border: 1px solid #ddd;
+      border-radius: 8px;
       padding: 10px;
-      border: 2px solid #ccc;
-      border-radius: 6px;
+      min-width: 60px;
+      background: #fafafa;
+    }
+
+    .group-label {
+      font-weight: bold;
+      margin-bottom: 6px;
+    }
+
+    .kana-btn {
+      border: 1px solid #ccc;
+      background: #fff;
+      border-radius: 4px;
+      padding: 5px 8px;
+      margin: 2px 0;
+      font-size: 20px;
       cursor: pointer;
-      background-color: #f0f0f0;
-      font-size: 16px;
-      text-align: center;
-      min-width: 100px;
       transition: 0.2s;
     }
 
-    .group-btn div.kana {
-      font-size: 20px;
-      margin-bottom: 4px;
-    }
-
-    .group-btn.selected {
+    .kana-btn.selected {
       background-color: #3c90f7;
       color: white;
       border-color: #3c90f7;
     }
 
-    .section-title {
-      margin-top: 30px;
+    .controls {
       margin-bottom: 10px;
     }
 
     button[type="submit"] {
+      margin-top: 20px;
       padding: 10px 20px;
       font-size: 16px;
     }
   </style>
 </head>
 <body>
-  <h1>Trainer Settings</h1>
+  <h1>Kana Trainer Settings</h1>
 
   <form id="settingsForm">
     <label>
@@ -55,14 +71,21 @@
       <input type="number" id="kanaCount" min="1" max="50" />
     </label>
 
-    <div class="section-title"><strong>Hiragana Groups</strong></div>
-    <div id="hiraganaGroups" class="group-grid"></div>
+    <div class="section-title">Hiragana</div>
+    <div class="controls">
+      <button type="button" id="selectAllH">Select All</button>
+      <button type="button" id="deselectAllH">Deselect All</button>
+    </div>
+    <div id="hiraganaGroups" class="group-container"></div>
 
-    <div class="section-title"><strong>Katakana Groups</strong></div>
-    <div id="katakanaGroups" class="group-grid"></div>
+    <div class="section-title">Katakana</div>
+    <div class="controls">
+      <button type="button" id="selectAllK">Select All</button>
+      <button type="button" id="deselectAllK">Deselect All</button>
+    </div>
+    <div id="katakanaGroups" class="group-container"></div>
 
-    <br />
-    <button type="submit">💾 Save & Go Practice</button>
+    <button type="submit">💾 Save & Start Practice</button>
   </form>
 
   <script type="module">
@@ -76,49 +99,76 @@
     const settings = loadSettings();
     kanaCountInput.value = settings.kanaCount || 10;
 
-    function renderGroupButtons(groups, container, selectedList, prefix) {
-      Object.entries(groups).forEach(([key, kanaList]) => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'group-btn';
-        btn.dataset.group = key;
-
-        const kanaDiv = document.createElement('div');
-        kanaDiv.className = 'kana';
-        kanaDiv.textContent = kanaList.join(' ');
+    function renderKanaColumns(groups, container, selectedGroups, type) {
+      for (const [key, kanaList] of Object.entries(groups)) {
+        const column = document.createElement('div');
+        column.className = 'group-column';
+        column.dataset.group = key;
 
         const label = document.createElement('div');
+        label.className = 'group-label';
         label.textContent = key.toUpperCase();
+        column.appendChild(label);
 
-        btn.appendChild(kanaDiv);
-        btn.appendChild(label);
+        kanaList.forEach(kana => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'kana-btn';
+          btn.textContent = kana;
+          btn.dataset.kana = kana;
+          if (selectedGroups.includes(key)) {
+            btn.classList.add('selected');
+          }
 
-        if (selectedList.includes(key)) btn.classList.add('selected');
+          btn.addEventListener('click', () => {
+            btn.classList.toggle('selected');
+          });
 
-        btn.addEventListener('click', () => {
-          btn.classList.toggle('selected');
+          column.appendChild(btn);
         });
 
-        container.appendChild(btn);
-      });
+        // Toggle all on column label click
+        label.addEventListener('click', () => {
+          const buttons = column.querySelectorAll('.kana-btn');
+          const allSelected = Array.from(buttons).every(btn => btn.classList.contains('selected'));
+          buttons.forEach(btn => btn.classList.toggle('selected', !allSelected));
+        });
+
+        container.appendChild(column);
+      }
     }
 
-    renderGroupButtons(HIRAGANA_GROUPS, hGroupEl, settings.hiraganaGroups || [], 'h_');
-    renderGroupButtons(KATAKANA_GROUPS, kGroupEl, settings.katakanaGroups || [], 'k_');
+    renderKanaColumns(HIRAGANA_GROUPS, hGroupEl, settings.hiraganaGroups || [], 'hiragana');
+    renderKanaColumns(KATAKANA_GROUPS, kGroupEl, settings.katakanaGroups || [], 'katakana');
+
+    // Select/Deselect All Handlers
+    function toggleAll(container, select = true) {
+      const buttons = container.querySelectorAll('.kana-btn');
+      buttons.forEach(btn => btn.classList.toggle('selected', select));
+    }
+
+    document.getElementById('selectAllH').onclick = () => toggleAll(hGroupEl, true);
+    document.getElementById('deselectAllH').onclick = () => toggleAll(hGroupEl, false);
+    document.getElementById('selectAllK').onclick = () => toggleAll(kGroupEl, true);
+    document.getElementById('deselectAllK').onclick = () => toggleAll(kGroupEl, false);
 
     document.getElementById('settingsForm').addEventListener('submit', (e) => {
       e.preventDefault();
 
-      const getSelected = (el) => Array.from(el.querySelectorAll('.selected')).map(btn => btn.dataset.group);
+      const getSelectedGroups = (container, groups) => {
+        return Object.keys(groups).filter(group => {
+          const column = container.querySelector(`[data-group="${group}"]`);
+          return column && Array.from(column.querySelectorAll('.kana-btn')).some(btn => btn.classList.contains('selected'));
+        });
+      };
 
       const newSettings = {
         kanaCount: parseInt(kanaCountInput.value),
-        hiraganaGroups: getSelected(hGroupEl),
-        katakanaGroups: getSelected(kGroupEl)
+        hiraganaGroups: getSelectedGroups(hGroupEl, HIRAGANA_GROUPS),
+        katakanaGroups: getSelectedGroups(kGroupEl, KATAKANA_GROUPS)
       };
 
       saveSettings(newSettings);
-      // No alert — just redirect!
       window.location.href = 'index.html';
     });
   </script>
