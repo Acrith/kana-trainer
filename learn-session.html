@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Kana Learning Mode</title>
   <link rel="stylesheet" href="style.css" />
   <style>
@@ -49,7 +49,7 @@
     }
 
     @keyframes fadeOut {
-      0%   { opacity: 1; }
+      0% { opacity: 1; }
       100% { opacity: 0; }
     }
 
@@ -137,11 +137,10 @@
   <p id="hint"></p>
 
   <div id="statsGrid" class="group-bar"></div>
-
   <div id="toast"></div>
   <p><a href="learn.html">🔙 Back to mode select</a></p>
 
-  <script type="module">
+    <script type="module">
     import {
       HIRAGANA, KATAKANA,
       HIRAGANA_GROUPS, KATAKANA_GROUPS
@@ -184,18 +183,21 @@
       })
     );
 
-    let queue = [], currentKana = '', expectedRomaji = '', mistakeCount = 0;
-    const sessionStats = {};
-    const correctHistory = {};
-    let revealActive = false;
+    let queue = [], queueMeta = [], currentKana = '', expectedRomaji = '', mistakeCount = 0;
+    const sessionStats = {}, correctHistory = {};
+    let revealUntil = 0;
 
     function getRandomKana() {
       return kanaKeys[Math.floor(Math.random() * kanaKeys.length)];
     }
 
     function initQueue() {
-      queue = [];
-      for (let i = 0; i < 10; i++) queue.push(getRandomKana());
+      queue = [], queueMeta = [];
+      for (let i = 0; i < 10; i++) {
+        const kana = getRandomKana();
+        queue.push(kana);
+        queueMeta.push({ shown: 0, incorrect: 0 });
+      }
       renderQueue();
       setCurrent();
       renderStatsGrid();
@@ -203,26 +205,27 @@
 
     function renderQueue() {
       kanaStream.innerHTML = '';
+      const now = Date.now();
+
       queue.forEach((kana, i) => {
+        const meta = queueMeta[i];
         const block = document.createElement('div');
         block.className = 'kana-block';
 
-        const romaji = kanaMap[kana];
-        const stat = sessionStats[kana] || { correct: 0, incorrect: 0, shown: 0 };
-        stat.shown = (stat.shown || 0) + 1;
-        sessionStats[kana] = stat;
+        meta.shown++;
+        const stat = sessionStats[kana] || { correct: 0, incorrect: 0 };
         const total = stat.correct + stat.incorrect;
         const accuracy = total ? stat.correct / total : 1;
 
-        const showHint = revealActive || stat.shown <= 3 || accuracy < 0.5;
+        const showHint = now < revealUntil || meta.shown <= 3 || accuracy < 0.5;
 
         const hint = document.createElement('span');
         hint.className = 'kana-hint';
-        if (revealActive) hint.classList.add('fade-out');
-        hint.textContent = showHint ? romaji : '';
+        if (now < revealUntil) hint.classList.add('fade-out');
+        hint.textContent = showHint ? kanaMap[kana] : '';
+
         const span = document.createElement('span');
-        span.className = 'kana';
-        if (i === 0) span.classList.add('active');
+        span.className = 'kana' + (i === 0 ? ' active' : '');
         span.textContent = kana;
 
         block.appendChild(hint);
@@ -243,6 +246,12 @@
       return history.length >= 5 && history.slice(-5).every(Boolean);
     }
 
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 4000);
+    }
+
     function checkUnlock() {
       const attemptedKana = Object.keys(sessionStats);
       for (const group of unlockedGroups) {
@@ -254,12 +263,21 @@
         const allMastered = seenKana.every(k => isMastered(k));
         if (!allMastered) return;
       }
+
       const nextGroup = LEARNING_SEQUENCE.find(g => !unlockedGroups.includes(g));
       if (nextGroup) {
         unlockedGroups.push(nextGroup);
         localStorage.setItem(unlockedKey, JSON.stringify(unlockedGroups));
         showToast(`🎉 You've unlocked: ${nextGroup.toUpperCase()}`);
-        setTimeout(() => location.reload(), 2500);
+        // Update in-place without reload
+        if (isHiragana) GROUPS.hiragana[nextGroup]?.forEach(k => {
+          kanaMap[k] = HIRAGANA[k];
+          kanaKeys.push(k);
+        });
+        if (isKatakana) GROUPS.katakana[nextGroup]?.forEach(k => {
+          kanaMap[k] = KATAKANA[k];
+          kanaKeys.push(k);
+        });
       }
     }
 
@@ -295,12 +313,6 @@
       }
     }
 
-    function showToast(msg) {
-      toast.textContent = msg;
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 4000);
-    }
-
     inputBox.addEventListener('input', () => {
       const typed = inputBox.value.trim().toLowerCase();
       if (expectedRomaji.startsWith(typed)) {
@@ -310,8 +322,13 @@
           sessionStats[currentKana].correct++;
           correctHistory[currentKana] = (correctHistory[currentKana] || []).concat(true).slice(-5);
           updateStats(currentKana, true, 0);
+
           queue.shift();
-          queue.push(getRandomKana());
+          queueMeta.shift();
+          const newKana = getRandomKana();
+          queue.push(newKana);
+          queueMeta.push({ shown: 0, incorrect: 0 });
+
           renderQueue();
           setCurrent();
           inputBox.value = '';
@@ -324,6 +341,7 @@
         sessionStats[currentKana].incorrect++;
         correctHistory[currentKana] = (correctHistory[currentKana] || []).concat(false).slice(-5);
         updateStats(currentKana, false, 0);
+        queueMeta[0].incorrect++;
         inputBox.className = 'incorrect';
         inputBox.value = '';
         if (mistakeCount >= 3) hintEl.textContent = `💡 Hint: ${expectedRomaji[0]}_`;
@@ -332,13 +350,8 @@
     });
 
     revealBtn.addEventListener('click', () => {
-      if (revealActive) return;
-      revealActive = true;
+      revealUntil = Date.now() + 5000;
       renderQueue();
-      setTimeout(() => {
-        revealActive = false;
-        renderQueue();
-      }, 5000);
     });
 
     initQueue();
