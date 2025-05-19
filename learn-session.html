@@ -5,47 +5,80 @@
   <title>Kana Learning Mode</title>
   <link rel="stylesheet" href="style.css" />
   <style>
+    body {
+      font-family: sans-serif;
+      padding: 20px;
+    }
+
     #kanaStream {
+      display: flex;
+      gap: 8px;
       margin-bottom: 20px;
       font-size: 1.8rem;
     }
+
+    .kana-block {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 2em;
+      height: 3.2em;
+      position: relative;
+    }
+
     .kana {
       color: #aaa;
-      display: inline-block;
-      text-align: center;
-      width: 2em;
     }
-    .active {
+
+    .kana.active {
       font-weight: bold;
       color: #000;
     }
+
     .kana-hint {
-      display: block;
-      font-size: 0.7rem;
-      color: #777;
+      font-size: 0.75rem;
+      color: #666;
+      opacity: 1;
+      transition: opacity 0.5s ease-out;
+      pointer-events: none;
+      height: 1em;
     }
+
+    .fade-out {
+      animation: fadeOut 5s forwards;
+    }
+
+    @keyframes fadeOut {
+      0%   { opacity: 1; }
+      100% { opacity: 0; }
+    }
+
     #inputBox {
       font-size: 1.2rem;
       padding: 8px;
       width: 300px;
       margin-bottom: 10px;
     }
+
     .group-bar {
       display: flex;
       flex-wrap: wrap;
       gap: 16px;
       margin-top: 20px;
     }
+
     .group-block {
       display: flex;
       flex-direction: column;
       align-items: center;
     }
+
     .group-label {
       font-size: 0.8rem;
       font-weight: bold;
       margin-bottom: 4px;
     }
+
     .stat-kana {
       padding: 4px 6px;
       margin: 2px;
@@ -56,14 +89,41 @@
       text-align: center;
       border: 1px solid #ccc;
     }
+
     .stat-kana.mastered {
       background: #c8f7c5;
       border-color: #4caf50;
     }
+
     .reveal-btn {
       margin-bottom: 10px;
       padding: 5px 10px;
       font-size: 14px;
+    }
+
+    #toast {
+      position: fixed;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #4caf50;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 5px;
+      display: none;
+      opacity: 0;
+    }
+
+    #toast.show {
+      display: block;
+      animation: toastFade 4s forwards;
+    }
+
+    @keyframes toastFade {
+      0% { opacity: 0; }
+      10% { opacity: 1; }
+      90% { opacity: 1; }
+      100% { opacity: 0; }
     }
   </style>
 </head>
@@ -78,6 +138,7 @@
 
   <div id="statsGrid" class="group-bar"></div>
 
+  <div id="toast"></div>
   <p><a href="learn.html">🔙 Back to mode select</a></p>
 
   <script type="module">
@@ -92,6 +153,7 @@
     const statsGrid = document.getElementById('statsGrid');
     const hintEl = document.getElementById('hint');
     const revealBtn = document.getElementById('revealBtn');
+    const toast = document.getElementById('toast');
     const modeEl = document.getElementById('modeInfo');
 
     const mode = new URLSearchParams(location.search).get("mode") || "hiragana";
@@ -102,21 +164,13 @@
       "vowels", "k", "s", "t", "n", "h", "m", "y", "r", "w", "g", "z", "d", "b", "p"
     ];
 
-    const GROUPS = {
-      hiragana: HIRAGANA_GROUPS,
-      katakana: KATAKANA_GROUPS
-    };
-    const KANA = {
-      hiragana: HIRAGANA,
-      katakana: KATAKANA
-    };
+    const GROUPS = { hiragana: HIRAGANA_GROUPS, katakana: KATAKANA_GROUPS };
+    const KANA = { hiragana: HIRAGANA, katakana: KATAKANA };
 
     modeEl.textContent = `🧭 Mode: ${mode.toUpperCase()}`;
-
     let unlockedGroups = JSON.parse(localStorage.getItem(unlockedKey) || '["vowels"]');
-    let kanaMap = {};
-    let kanaKeys = [];
 
+    let kanaMap = {}, kanaKeys = [];
     if (isHiragana) unlockedGroups.forEach(g =>
       GROUPS.hiragana[g]?.forEach(k => {
         kanaMap[k] = HIRAGANA[k];
@@ -133,7 +187,6 @@
     let queue = [], currentKana = '', expectedRomaji = '', mistakeCount = 0;
     const sessionStats = {};
     const correctHistory = {};
-    let revealTimer = null;
     let revealActive = false;
 
     function getRandomKana() {
@@ -151,20 +204,30 @@
     function renderQueue() {
       kanaStream.innerHTML = '';
       queue.forEach((kana, i) => {
-        const span = document.createElement('span');
+        const block = document.createElement('div');
+        block.className = 'kana-block';
+
         const romaji = kanaMap[kana];
         const stat = sessionStats[kana] || { correct: 0, incorrect: 0, shown: 0 };
-        const total = stat.correct + stat.incorrect;
-
         stat.shown = (stat.shown || 0) + 1;
         sessionStats[kana] = stat;
+        const total = stat.correct + stat.incorrect;
+        const accuracy = total ? stat.correct / total : 1;
 
-        const showHint =
-          revealActive || stat.shown <= 3 || stat.incorrect > 0;
+        const showHint = revealActive || stat.shown <= 3 || accuracy < 0.5;
 
-        span.className = 'kana' + (i === 0 ? ' active' : '');
-        span.innerHTML = `${showHint ? `<span class="kana-hint">${romaji}</span>` : ''}${kana}`;
-        kanaStream.appendChild(span);
+        const hint = document.createElement('span');
+        hint.className = 'kana-hint';
+        if (revealActive) hint.classList.add('fade-out');
+        hint.textContent = showHint ? romaji : '';
+        const span = document.createElement('span');
+        span.className = 'kana';
+        if (i === 0) span.classList.add('active');
+        span.textContent = kana;
+
+        block.appendChild(hint);
+        block.appendChild(span);
+        kanaStream.appendChild(block);
       });
     }
 
@@ -177,17 +240,17 @@
 
     function isMastered(kana) {
       const history = correctHistory[kana] || [];
-      if (history.length < 5) return false;
-      return history.slice(-5).every(Boolean);
+      return history.length >= 5 && history.slice(-5).every(Boolean);
     }
 
     function checkUnlock() {
-      const allSeen = new Set(Object.keys(sessionStats));
+      const attemptedKana = Object.keys(sessionStats);
       for (const group of unlockedGroups) {
         let groupKana = [];
         if (isHiragana) groupKana.push(...(GROUPS.hiragana[group] || []));
         if (isKatakana) groupKana.push(...(GROUPS.katakana[group] || []));
-        const seenKana = groupKana.filter(k => allSeen.has(k));
+        const seenKana = groupKana.filter(k => attemptedKana.includes(k));
+        if (seenKana.length === 0) continue;
         const allMastered = seenKana.every(k => isMastered(k));
         if (!allMastered) return;
       }
@@ -195,8 +258,8 @@
       if (nextGroup) {
         unlockedGroups.push(nextGroup);
         localStorage.setItem(unlockedKey, JSON.stringify(unlockedGroups));
-        alert(`🎉 Unlocked: ${nextGroup.toUpperCase()}`);
-        location.reload();
+        showToast(`🎉 You've unlocked: ${nextGroup.toUpperCase()}`);
+        setTimeout(() => location.reload(), 2500);
       }
     }
 
@@ -207,6 +270,9 @@
       if (isKatakana) unlockedGroups.forEach(g => groupData[g] = GROUPS.katakana[g]);
 
       for (const [group, list] of Object.entries(groupData)) {
+        const attempted = (list || []).filter(k => sessionStats[k]);
+        if (attempted.length === 0) continue;
+
         const block = document.createElement('div');
         block.className = 'group-block';
 
@@ -215,19 +281,24 @@
         label.textContent = group.toUpperCase();
         block.appendChild(label);
 
-        (list || []).forEach(kana => {
+        attempted.forEach(kana => {
           const span = document.createElement('span');
           span.className = 'stat-kana';
           const stat = sessionStats[kana] || { correct: 0, incorrect: 0 };
           const total = stat.correct + stat.incorrect;
-          const text = `${kana} (${stat.correct}/${total})`;
-          span.textContent = text;
+          span.textContent = `${kana} (${stat.correct}/${total})`;
           if (isMastered(kana)) span.classList.add('mastered');
           block.appendChild(span);
         });
 
         statsGrid.appendChild(block);
       }
+    }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 4000);
     }
 
     inputBox.addEventListener('input', () => {
@@ -261,15 +332,12 @@
     });
 
     revealBtn.addEventListener('click', () => {
-      if (revealTimer) return;
+      if (revealActive) return;
       revealActive = true;
       renderQueue();
-      revealBtn.disabled = true;
-      revealTimer = setTimeout(() => {
+      setTimeout(() => {
         revealActive = false;
         renderQueue();
-        revealBtn.disabled = false;
-        revealTimer = null;
       }, 5000);
     });
 
